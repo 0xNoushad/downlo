@@ -1,6 +1,27 @@
-# Video Downloader - Technical Documentation
+# Video Downloader
 
 A Next.js-based universal video downloader that supports multiple platforms including YouTube, TikTok, Instagram, Twitter, Facebook, Vimeo, and more.
+
+## 🎬 Demo
+
+See the app in action:
+
+<video width="100%" controls>
+  <source src="./public/downlo.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+_Watch how easy it is to download videos from any supported platform with just a URL paste!_
+
+### ✨ Key Features Shown
+
+- **Instant URL detection** - Just paste and go
+- **Video preview** - See thumbnail and details before downloading
+- **Multiple formats** - Choose quality and format
+- **Smart clipping** - Download specific segments
+- **iOS-style UI** - Clean, modern interface
+
+---
 
 ## 🏗️ Architecture Overview
 
@@ -23,6 +44,7 @@ This application uses a **server-side processing architecture** with Next.js API
 ## 🛠️ Technical Stack
 
 ### Frontend
+
 - **Next.js 14** - React framework with App Router
 - **TypeScript** - Type safety and better DX
 - **Tailwind CSS** - Utility-first styling
@@ -30,11 +52,13 @@ This application uses a **server-side processing architecture** with Next.js API
 - **Lucide React** - Icon library
 
 ### Backend
+
 - **Next.js API Routes** - Server-side processing
 - **Node.js Child Process** - External tool execution
 - **Stream Processing** - Memory-efficient file handling
 
 ### External Dependencies
+
 - **yt-dlp** - Video extraction engine
 - **ffmpeg** - Video processing and clipping
 
@@ -45,6 +69,7 @@ This application uses a **server-side processing architecture** with Next.js API
 **Purpose**: Extracts video metadata without downloading the actual video file.
 
 **Process Flow**:
+
 ```bash
 1. Client sends URL → API Route
 2. API validates URL format
@@ -54,6 +79,7 @@ This application uses a **server-side processing architecture** with Next.js API
 ```
 
 **Key Features**:
+
 - Platform detection (YouTube, TikTok, etc.)
 - Thumbnail extraction
 - Duration formatting
@@ -61,6 +87,7 @@ This application uses a **server-side processing architecture** with Next.js API
 - Format availability check
 
 **Command Example**:
+
 ```bash
 yt-dlp "https://youtube.com/watch?v=example" \
   --dump-single-json \
@@ -77,14 +104,17 @@ yt-dlp "https://youtube.com/watch?v=example" \
 **Two Processing Modes**:
 
 #### 1. Direct Download (No Clipping)
+
 ```bash
 yt-dlp -f [format] --no-warnings -o - [URL]
 ```
+
 - Streams directly to client
 - Memory efficient
 - Fastest option
 
 #### 2. Clipped Download (Server-side Processing)
+
 ```bash
 # Step 1: Download to temp file
 yt-dlp -f [format] -o /tmp/video.mp4 [URL]
@@ -96,6 +126,7 @@ ffmpeg -i /tmp/video.mp4 -ss [start] -t [duration] -c copy /tmp/clip.mp4
 ```
 
 **Clipping Logic**:
+
 - Time parsing: `mm:ss` or `hh:mm:ss` → seconds
 - Smart codec copying (no re-encoding when possible)
 - Temporary file management
@@ -106,12 +137,14 @@ ffmpeg -i /tmp/video.mp4 -ss [start] -t [duration] -c copy /tmp/clip.mp4
 **Purpose**: Extracts and serves video thumbnails in multiple qualities.
 
 **Features**:
+
 - Multiple thumbnail qualities (maxres, high, medium, default)
 - CORS proxy for thumbnail downloads
 - Quality selection algorithm
 - Fallback thumbnail generation
 
 **Process**:
+
 ```bash
 # Extract thumbnail list
 yt-dlp --list-thumbnails [URL]
@@ -151,16 +184,19 @@ pnpm install
 ### Step 2: Install yt-dlp
 
 **Option A: Using pip (Recommended)**
+
 ```bash
 pip install yt-dlp
 ```
 
 **Option B: Using pipx (Isolated)**
+
 ```bash
 pipx install yt-dlp
 ```
 
 **Option C: Direct download**
+
 ```bash
 # Linux/macOS
 sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
@@ -173,17 +209,20 @@ Invoke-WebRequest -Uri https://github.com/yt-dlp/yt-dlp/releases/latest/download
 ### Step 3: Install ffmpeg (Optional - for clipping)
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt update
 sudo apt install ffmpeg
 ```
 
 **macOS:**
+
 ```bash
 brew install ffmpeg
 ```
 
 **Windows:**
+
 ```bash
 # Using Chocolatey
 choco install ffmpeg
@@ -193,6 +232,7 @@ scoop install ffmpeg
 ```
 
 **CentOS/RHEL:**
+
 ```bash
 sudo yum install epel-release
 sudo yum install ffmpeg
@@ -230,15 +270,15 @@ When a user pastes a URL:
 
 ```typescript
 // Client sends URL to /api/video-info
-const response = await fetch('/api/video-info', {
-  method: 'POST',
-  body: JSON.stringify({ url })
-})
+const response = await fetch("/api/video-info", {
+  method: "POST",
+  body: JSON.stringify({ url }),
+});
 
 // Server executes yt-dlp
-const command = `yt-dlp "${url}" --dump-single-json --no-warnings`
-const { stdout } = await execAsync(command)
-const info = JSON.parse(stdout)
+const command = `yt-dlp "${url}" --dump-single-json --no-warnings`;
+const { stdout } = await execAsync(command);
+const info = JSON.parse(stdout);
 
 // Returns formatted metadata
 return {
@@ -246,63 +286,71 @@ return {
   title: info.title,
   duration: formatDuration(info.duration),
   platform: detectPlatform(url),
-  formats: info.formats
-}
+  formats: info.formats,
+};
 ```
 
 ### 2. Video Download Process
 
 #### Direct Download Flow:
+
 ```typescript
 // Spawn yt-dlp process
-const child = spawn('yt-dlp', [
-  '-f', format,
-  '--no-warnings',
-  '-o', '-',  // Output to stdout
-  url
-])
+const child = spawn("yt-dlp", [
+  "-f",
+  format,
+  "--no-warnings",
+  "-o",
+  "-", // Output to stdout
+  url,
+]);
 
 // Stream directly to client
-child.stdout.on('data', (chunk) => {
+child.stdout.on("data", (chunk) => {
   // Forward chunk to HTTP response
-})
+});
 ```
 
 #### Clipped Download Flow:
+
 ```typescript
 // Step 1: Download full video
-await downloadToTemp(url, format, tempPath)
+await downloadToTemp(url, format, tempPath);
 
 // Step 2: Process with ffmpeg
 const ffmpegArgs = [
-  '-i', tempPath,
-  '-ss', startTime,
-  '-t', duration,
-  '-c', 'copy',  // No re-encoding
-  outputPath
-]
-await execFFmpeg(ffmpegArgs)
+  "-i",
+  tempPath,
+  "-ss",
+  startTime,
+  "-t",
+  duration,
+  "-c",
+  "copy", // No re-encoding
+  outputPath,
+];
+await execFFmpeg(ffmpegArgs);
 
 // Step 3: Stream processed file
-const buffer = await readFile(outputPath)
-return new Response(buffer)
+const buffer = await readFile(outputPath);
+return new Response(buffer);
 ```
 
 ### 3. Platform Support
 
 The application supports these platforms through yt-dlp:
 
-| Platform | URL Pattern | Special Features |
-|----------|-------------|------------------|
-| YouTube | `youtube.com`, `youtu.be` | Multiple qualities, live streams |
-| TikTok | `tiktok.com` | Mobile optimized |
-| Instagram | `instagram.com` | Stories, reels, posts |
-| Twitter | `twitter.com`, `x.com` | Video tweets |
-| Facebook | `facebook.com` | Public videos |
-| Vimeo | `vimeo.com` | High quality options |
-| Twitch | `twitch.tv` | Clips and VODs |
-| Reddit | `reddit.com` | Video posts |
-| SoundCloud | `soundcloud.com` | Audio extraction |
+| Platform   | URL Pattern               | Special Features                 |
+| ---------- | ------------------------- | -------------------------------- |
+| YouTube    | `youtube.com`, `youtu.be` | Multiple qualities, live streams |
+| TikTok     | `tiktok.com`              | Mobile optimized                 |
+| Instagram  | `instagram.com`           | Stories, reels, posts            |
+| Twitter    | `twitter.com`, `x.com`    | Video tweets                     |
+| Facebook   | `facebook.com`            | Public videos                    |
+| Vimeo      | `vimeo.com`               | High quality options             |
+| Twitch     | `twitch.tv`               | Clips and VODs                   |
+| Reddit     | `reddit.com`              | Video posts                      |
+| SoundCloud | `soundcloud.com`          | Audio extraction                 |
 
 ### 4. Error Handling
 
@@ -310,16 +358,16 @@ The application implements comprehensive error handling:
 
 ```typescript
 // Platform-specific errors
-if (error.includes('Private video')) {
-  return 'This video is private and cannot be downloaded'
+if (error.includes("Private video")) {
+  return "This video is private and cannot be downloaded";
 }
-if (error.includes('geo-blocked')) {
-  return 'Content is geo-blocked or restricted'
+if (error.includes("geo-blocked")) {
+  return "Content is geo-blocked or restricted";
 }
 
 // System errors
-if (error.code === 'ENOENT') {
-  return 'yt-dlp not found in PATH'
+if (error.code === "ENOENT") {
+  return "yt-dlp not found in PATH";
 }
 ```
 
@@ -376,6 +424,7 @@ CMD ["npm", "start"]
 ### Common Issues
 
 **1. "yt-dlp not found"**
+
 ```bash
 # Check if yt-dlp is in PATH
 which yt-dlp
@@ -386,6 +435,7 @@ pip install yt-dlp
 ```
 
 **2. "ffmpeg not available"**
+
 ```bash
 # Check ffmpeg installation
 which ffmpeg
@@ -396,12 +446,14 @@ sudo apt install ffmpeg
 ```
 
 **3. "Download failed"**
+
 - Check internet connectivity
 - Verify URL is accessible
 - Check if video is private/geo-blocked
 - Update yt-dlp: `pip install -U yt-dlp`
 
 **4. "Clipping not working"**
+
 - Ensure ffmpeg is installed
 - Check temporary directory permissions
 - Verify sufficient disk space
@@ -409,6 +461,7 @@ sudo apt install ffmpeg
 ### Debug Mode
 
 Enable detailed logging:
+
 ```bash
 # Set environment variable
 DEBUG=1 npm run dev
@@ -427,12 +480,14 @@ DEBUG=1 npm run dev
 ## 🔄 Updates & Maintenance
 
 ### Keeping yt-dlp Updated
+
 ```bash
 # Update yt-dlp regularly for platform compatibility
 pip install -U yt-dlp
 ```
 
 ### Platform Changes
+
 - Monitor yt-dlp releases for platform fixes
 - Test major platforms regularly
 - Update error handling for new edge cases
