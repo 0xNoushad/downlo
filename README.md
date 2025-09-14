@@ -6,12 +6,9 @@ A Next.js-based universal video downloader that supports multiple platforms incl
 
 See the app in action:
 
-<video width="100%" controls>
-  <source src="./public/downlo.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+[![Demo Video](https://img.shields.io/badge/▶️-Watch%20Demo-blue?style=for-the-badge)](./public/downlo.mp4)
 
-_Watch how easy it is to download videos from any supported platform with just a URL paste!_
+_Click above to download and watch the demo video showing how easy it is to download videos from any supported platform!_
 
 ### ✨ Key Features Shown
 
