@@ -1,78 +1,88 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { X, Download } from 'lucide-react'
+import { useState } from "react";
+import { X, Download } from "lucide-react";
 
 interface ThumbnailModalProps {
-  isOpen: boolean
-  onClose: () => void
-  thumbnail: string
-  title: string
-  videoUrl: string
+  isOpen: boolean;
+  onClose: () => void;
+  thumbnail: string;
+  title: string;
+  videoUrl: string;
 }
 
-export function ThumbnailModal({ isOpen, onClose, thumbnail, title, videoUrl }: ThumbnailModalProps) {
-  const [downloading, setDownloading] = useState(false)
-  const [thumbnails, setThumbnails] = useState<any[]>([])
-  const [loadingThumbnails, setLoadingThumbnails] = useState(false)
+export function ThumbnailModal({
+  isOpen,
+  onClose,
+  thumbnail,
+  title,
+  videoUrl,
+}: ThumbnailModalProps) {
+  const [downloading, setDownloading] = useState(false);
+  const [thumbnails, setThumbnails] = useState<any[]>([]);
+  const [loadingThumbnails, setLoadingThumbnails] = useState(false);
 
   const fetchThumbnails = async () => {
-    if (thumbnails.length > 0) return // Already loaded
-    
-    setLoadingThumbnails(true)
+    if (thumbnails.length > 0) return; // Already loaded
+
+    setLoadingThumbnails(true);
     try {
-      const response = await fetch('/api/thumbnail', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: videoUrl, quality: 'best' }),
-      })
+      const response = await fetch("/api/thumbnail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: videoUrl, quality: "best" }),
+      });
 
       if (response.ok) {
-        const data = await response.json()
-        setThumbnails(data.thumbnails || [])
+        const data = await response.json();
+        setThumbnails(data.thumbnails || []);
       }
     } catch (error) {
-      console.error('Failed to fetch thumbnails:', error)
+      console.error("Failed to fetch thumbnails:", error);
     } finally {
-      setLoadingThumbnails(false)
+      setLoadingThumbnails(false);
     }
-  }
+  };
 
   const downloadThumbnail = async (thumbnailUrl: string, quality: string) => {
-    setDownloading(true)
+    setDownloading(true);
     try {
-      const filename = `${title.replace(/[^a-zA-Z0-9]/g, '_')}_${quality}.jpg`
-      const response = await fetch(`/api/thumbnail?url=${encodeURIComponent(thumbnailUrl)}&filename=${filename}`)
-      
+      const filename = `${title.replace(/[^a-zA-Z0-9]/g, "_")}_${quality}.jpg`;
+      const response = await fetch(
+        `/api/thumbnail?url=${encodeURIComponent(
+          thumbnailUrl
+        )}&filename=${filename}`
+      );
+
       if (response.ok) {
-        const blob = await response.blob()
-        const link = document.createElement('a')
-        const objectUrl = URL.createObjectURL(blob)
-        link.href = objectUrl
-        link.download = filename
-        
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(objectUrl)
+        const blob = await response.blob();
+        const link = document.createElement("a");
+        const objectUrl = URL.createObjectURL(blob);
+        link.href = objectUrl;
+        link.download = filename;
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
       }
     } catch (error) {
-      console.error('Download failed:', error)
+      console.error("Download failed:", error);
     } finally {
-      setDownloading(false)
+      setDownloading(false);
     }
-  }
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="relative bg-background border border-dashed max-w-4xl max-h-[90vh] w-full mx-4 overflow-hidden">
         {/* Header */}
@@ -100,12 +110,12 @@ export function ThumbnailModal({ isOpen, onClose, thumbnail, title, videoUrl }: 
             <div className="p-3 border-t border-dashed">
               <p className="text-sm font-medium mb-2">{title}</p>
               <button
-                onClick={() => downloadThumbnail(thumbnail, 'default')}
+                onClick={() => downloadThumbnail(thumbnail, "default")}
                 disabled={downloading}
                 className="flex items-center gap-2 px-3 py-2 border border-dashed hover:bg-muted disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
-                {downloading ? 'downloading...' : 'download thumbnail'}
+                {downloading ? "downloading..." : "download thumbnail"}
               </button>
             </div>
           </div>
@@ -114,7 +124,9 @@ export function ThumbnailModal({ isOpen, onClose, thumbnail, title, videoUrl }: 
           <div className="border border-dashed overflow-hidden">
             <div className="p-3 border-b border-dashed bg-card">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">all available thumbnails</span>
+                <span className="text-sm font-medium">
+                  all available thumbnails
+                </span>
                 {!loadingThumbnails && thumbnails.length === 0 && (
                   <button
                     onClick={fetchThumbnails}
@@ -125,19 +137,29 @@ export function ThumbnailModal({ isOpen, onClose, thumbnail, title, videoUrl }: 
                 )}
               </div>
             </div>
-            
+
             <div className="p-4">
               {loadingThumbnails && (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-foreground mx-auto mb-2"></div>
-                  <p className="text-sm text-muted-foreground">loading thumbnails...</p>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="relative w-6 h-6 mb-3">
+                    <div className="absolute inset-0">
+                      <div className="w-full h-full rounded-full border-2 border-muted-foreground/20"></div>
+                      <div className="absolute inset-0 w-full h-full rounded-full border-2 border-transparent border-t-foreground animate-spin"></div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    loading thumbnails...
+                  </p>
                 </div>
               )}
 
               {thumbnails.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {thumbnails.map((thumb, index) => (
-                    <div key={index} className="border border-dashed overflow-hidden">
+                    <div
+                      key={index}
+                      className="border border-dashed overflow-hidden"
+                    >
                       <div className="aspect-video">
                         <img
                           src={thumb.url}
@@ -150,7 +172,9 @@ export function ThumbnailModal({ isOpen, onClose, thumbnail, title, videoUrl }: 
                           {thumb.width}x{thumb.height} • {thumb.quality}
                         </div>
                         <button
-                          onClick={() => downloadThumbnail(thumb.url, thumb.quality)}
+                          onClick={() =>
+                            downloadThumbnail(thumb.url, thumb.quality)
+                          }
                           disabled={downloading}
                           className="w-full px-2 py-1 text-xs border border-dashed hover:bg-muted disabled:opacity-50"
                         >
@@ -165,7 +189,9 @@ export function ThumbnailModal({ isOpen, onClose, thumbnail, title, videoUrl }: 
 
               {!loadingThumbnails && thumbnails.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  <p className="text-sm">click "load thumbnails" to see all available sizes</p>
+                  <p className="text-sm">
+                    click "load thumbnails" to see all available sizes
+                  </p>
                 </div>
               )}
             </div>
@@ -173,5 +199,5 @@ export function ThumbnailModal({ isOpen, onClose, thumbnail, title, videoUrl }: 
         </div>
       </div>
     </div>
-  )
+  );
 }

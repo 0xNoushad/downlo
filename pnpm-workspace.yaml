@@ -1,5 +1,6 @@
 ignoredBuiltDependencies:
   - '@prisma/client'
-  - ffmpeg-static
   - unrs-resolver
+
+onlyBuiltDependencies:
   - yt-dlp-exec

@@ -1,0 +1,40 @@
+{
+  "functions": {
+    "app/api/video-info/route.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "app/api/download/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "app/api/thumbnail/route.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "app/api/ffmpeg/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "app/api/health/route.ts": {
+      "maxDuration": 10,
+      "memory": 512
+    }
+  },
+  "env": {
+    "DEPLOYMENT_PLATFORM": "vercel",
+    "MAX_FILE_SIZE": "100000000",
+    "PROCESSING_TIMEOUT": "280000",
+    "MAX_VIDEO_DURATION": "1800",
+    "ENABLE_CLIPPING": "true",
+    "ENABLE_AUDIO_EXTRACTION": "true",
+    "DEFAULT_VIDEO_QUALITY": "720p"
+  },
+  "build": {
+    "env": {
+      "DEPLOYMENT_PLATFORM": "vercel"
+    }
+  },
+  "regions": ["iad1"],
+  "outputDirectory": ".next"
+}

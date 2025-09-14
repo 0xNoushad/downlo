@@ -90,13 +90,11 @@ export default function VideoDownloader() {
           <div className="flex flex-col gap-4 w-full border-x border-dashed max-w-4xl mx-auto h-full min-h-dvh">
             <div className="relative flex flex-col h-full">
               <div className="flex flex-col">
-                
                 <div className="p-4 lg:p-6 space-y-6">
                   <UrlInput
                     url={url}
                     setUrl={setUrl}
                     setVideoInfo={setVideoInfo}
-                    loading={loading}
                   />
 
                   {videoInfo && (
@@ -122,7 +120,9 @@ export default function VideoDownloader() {
                               <p>Platform: {videoInfo.platform}</p>
                             )}
                             {(startTime || endTime) && (
-                              <p className="text-blue-400">✂️ Clip mode enabled</p>
+                              <p className="text-blue-400">
+                                ✂️ Clip mode enabled
+                              </p>
                             )}
                           </div>
                         </div>
@@ -173,9 +173,16 @@ export default function VideoDownloader() {
                   )}
 
                   {loading && (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto mb-2"></div>
-                      <p className="text-muted-foreground text-sm">loading video info...</p>
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="relative w-8 h-8 mb-3">
+                        <div className="absolute inset-0">
+                          <div className="w-full h-full rounded-full border-2 border-muted-foreground/20"></div>
+                          <div className="absolute inset-0 w-full h-full rounded-full border-2 border-transparent border-t-foreground animate-spin"></div>
+                        </div>
+                      </div>
+                      <p className="text-muted-foreground text-sm">
+                        loading video info...
+                      </p>
                     </div>
                   )}
                 </div>

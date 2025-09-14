@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-
-const execAsync = promisify(exec)
+import { createVideoProcessor, getPlatformErrorInfo, type ThumbnailInfo } from '../../lib/video-processor'
+import { dependencyChecker } from '../../lib/dependency-checker'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,76 +12,67 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'URL is required' }, { status: 400 })
     }
 
-    // Check if yt-dlp is available
-    try {
-      await execAsync('yt-dlp --version')
-    } catch (error) {
-      console.error('yt-dlp not found:', error)
-      return Response.json({ 
-        error: 'yt-dlp is not installed or not in PATH. Please install it using: pip install yt-dlp',
-        details: 'The yt-dlp binary could not be found on the system.'
+    // Check available tools and create appropriate processor
+    const tools = await dependencyChecker.getAvailableTools()
+    console.log('Available tools for thumbnails:', tools)
+
+    if (tools.ytdlp === 'none') {
+      const platform = detectDeploymentPlatform()
+      const errorInfo = getPlatformErrorInfo(platform, ['yt-dlp'])
+      
+      return Response.json({
+        error: errorInfo.error,
+        details: 'yt-dlp is required for thumbnail extraction but is not available',
+        platform,
+        availableTools: tools,
+        suggestions: errorInfo.suggestions
       }, { status: 500 })
     }
 
     try {
-      // Get thumbnail URLs using yt-dlp
-      const command = `yt-dlp "${url}" --list-thumbnails --no-warnings --no-check-certificates --geo-bypass`
+      // Create video processor using abstraction layer
+      const processor = await createVideoProcessor()
       
-      const { stdout, stderr } = await execAsync(command, { 
-        timeout: 30000,
-        maxBuffer: 1024 * 1024 * 5 // 5MB buffer
-      })
-
-      if (stderr) {
-        console.warn('yt-dlp thumbnail warnings:', stderr)
-      }
-
-      // Parse thumbnail list from yt-dlp output
-      const thumbnails = parseThumbnailList(stdout)
+      // Get thumbnails using the processor
+      const thumbnails = await processor.getThumbnails(url, { quality: quality as any })
       
       // Select best thumbnail based on quality preference
       const selectedThumbnail = selectThumbnail(thumbnails, quality)
       
-      if (!selectedThumbnail) {
-        // Fallback: try to get thumbnail URL from video info
-        const infoCommand = `yt-dlp "${url}" --dump-single-json --no-check-certificates --no-warnings --format best`
-        const { stdout: infoStdout } = await execAsync(infoCommand, { timeout: 30000 })
-        const info = JSON.parse(infoStdout)
-        
-        if (info.thumbnail) {
-          return Response.json({
-            thumbnails: [{
-              url: info.thumbnail,
-              width: 'unknown',
-              height: 'unknown',
-              quality: 'default'
-            }]
-          })
-        }
-        
-        throw new Error('No thumbnails found')
-      }
-
       return Response.json({
         thumbnails: thumbnails,
-        selected: selectedThumbnail
+        selected: selectedThumbnail || thumbnails[0]
       })
 
-    } catch (execError: any) {
-      console.error('yt-dlp thumbnail error:', execError)
+    } catch (processorError: any) {
+      console.error('Video processor thumbnail error:', processorError)
       
       let userFriendlyError = 'Failed to fetch thumbnails'
       
-      if (execError.message?.includes('Unsupported URL')) {
+      if (processorError.message?.includes('Unsupported URL')) {
         userFriendlyError = 'This platform does not support thumbnail extraction'
-      } else if (execError.message?.includes('Private video')) {
+      } else if (processorError.message?.includes('Private video')) {
         userFriendlyError = 'Cannot access thumbnails from private videos'
+      } else if (processorError.message?.includes('not available')) {
+        userFriendlyError = 'Video processing tools are not available on this platform'
       }
 
-      return Response.json({
-        error: userFriendlyError,
-        details: execError.message
-      }, { status: 500 })
+      // If processor fails, try to generate a fallback thumbnail
+      try {
+        const fallbackThumbnail = generateFallbackThumbnail(url)
+        return Response.json({
+          thumbnails: [fallbackThumbnail],
+          selected: fallbackThumbnail,
+          warning: 'Using fallback thumbnail due to processing error'
+        })
+      } catch (fallbackError) {
+        return Response.json({
+          error: userFriendlyError,
+          details: processorError.message,
+          platform: detectDeploymentPlatform(),
+          availableTools: tools
+        }, { status: 500 })
+      }
     }
 
   } catch (error: any) {
@@ -95,51 +84,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function parseThumbnailList(output: string): Array<{url: string, width: string, height: string, quality: string}> {
-  const thumbnails: Array<{url: string, width: string, height: string, quality: string}> = []
-  
-  // Parse yt-dlp thumbnail list output
-  const lines = output.split('\n')
-  
-  for (const line of lines) {
-    // Look for lines containing thumbnail URLs
-    if (line.includes('http') && (line.includes('.jpg') || line.includes('.png') || line.includes('.webp'))) {
-      const parts = line.trim().split(/\s+/)
-      
-      // Extract URL (usually the last part containing http)
-      const urlPart = parts.find(part => part.startsWith('http'))
-      if (!urlPart) continue
-      
-      // Extract dimensions if available
-      const dimensionMatch = line.match(/(\d+)x(\d+)/)
-      const width = dimensionMatch ? dimensionMatch[1] : 'unknown'
-      const height = dimensionMatch ? dimensionMatch[2] : 'unknown'
-      
-      // Determine quality based on dimensions or URL
-      let quality = 'default'
-      if (urlPart.includes('maxres')) quality = 'maxres'
-      else if (urlPart.includes('hq')) quality = 'high'
-      else if (urlPart.includes('mq')) quality = 'medium'
-      else if (dimensionMatch) {
-        const pixels = parseInt(width) * parseInt(height)
-        if (pixels > 900000) quality = 'maxres'
-        else if (pixels > 200000) quality = 'high'
-        else if (pixels > 50000) quality = 'medium'
-      }
-      
-      thumbnails.push({
-        url: urlPart,
-        width,
-        height,
-        quality
-      })
-    }
-  }
-  
-  return thumbnails
-}
-
-function selectThumbnail(thumbnails: Array<{url: string, width: string, height: string, quality: string}>, preferredQuality: string) {
+function selectThumbnail(thumbnails: ThumbnailInfo[], preferredQuality: string): ThumbnailInfo | null {
   if (thumbnails.length === 0) return null
   
   // Quality priority order
@@ -158,6 +103,78 @@ function selectThumbnail(thumbnails: Array<{url: string, width: string, height: 
   
   // Fallback to first available
   return selected || thumbnails[0]
+}
+
+function detectDeploymentPlatform(): string {
+  // Check environment variables for platform detection
+  if (process.env.VERCEL) {
+    return 'vercel';
+  }
+  
+  if (process.env.RAILWAY_ENVIRONMENT) {
+    return 'railway';
+  }
+  
+  if (process.env.RENDER) {
+    return 'render';
+  }
+  
+  if (process.env.NODE_ENV === 'production') {
+    return 'production';
+  }
+  
+  return 'local';
+}
+
+function generateFallbackThumbnail(url: string): ThumbnailInfo {
+  // Detect platform from URL
+  const platformMap: Record<string, string> = {
+    'youtube': 'YouTube',
+    'vimeo': 'Vimeo',
+    'dailymotion': 'Dailymotion',
+    'instagram': 'Instagram',
+    'pinterest': 'Pinterest',
+    'tiktok': 'TikTok',
+    'twitter': 'Twitter/X',
+    'facebook': 'Facebook',
+    'twitch': 'Twitch',
+    'reddit': 'Reddit',
+    'soundcloud': 'SoundCloud',
+  };
+
+  const urlLower = url.toLowerCase();
+  let platform = '🌐 Unknown Platform';
+  
+  for (const [key, value] of Object.entries(platformMap)) {
+    if (urlLower.includes(key)) {
+      platform = value;
+      break;
+    }
+  }
+
+  const platformEmojis: Record<string, string> = {
+    'YouTube': '🎬',
+    'Vimeo': '🎥',
+    'Dailymotion': '📽️',
+    'Instagram': '📱',
+    'Pinterest': '🖼️',
+    'TikTok': '🎪',
+    'Twitter/X': '🐦',
+    'Facebook': '📘',
+    'Twitch': '🎮',
+    'Reddit': '💬',
+    'SoundCloud': '🎵',
+  };
+  
+  const emoji = platformEmojis[platform] || '🎬';
+  const fallbackUrl = `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180" viewBox="0 0 320 180"><rect width="320" height="180" fill="%23f3f4f6"/><text x="160" y="90" font-family="Arial, sans-serif" font-size="60" text-anchor="middle" dy="0.35em">${emoji}</text></svg>`;
+
+  return {
+    url: fallbackUrl,
+    width: '320',
+    height: '180',
+    quality: 'default'
+  };
 }
 
 // GET endpoint to proxy thumbnail downloads (to avoid CORS issues)

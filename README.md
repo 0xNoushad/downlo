@@ -323,12 +323,37 @@ if (error.code === 'ENOENT') {
 }
 ```
 
-## 🚀 Deployment Considerations
+## 🚀 Deployment
+
+This application supports multiple deployment platforms with different configurations and capabilities.
+
+### Quick Deploy Links
+
+| Platform | Deploy | Features |
+|----------|--------|----------|
+| **Vercel** | [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-repo) | Serverless, npm packages |
+| **Railway** | [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template) | System binaries, higher limits |
+| **Docker** | `docker build -t video-downloader .` | Full control, unlimited resources |
+
+### Platform Comparison
+
+| Feature | Vercel | Railway | Docker |
+|---------|--------|---------|--------|
+| **Max File Size** | 100MB | 500MB | 1GB+ |
+| **Max Duration** | 5 minutes | 10 minutes | Unlimited |
+| **Memory Limit** | 3GB | 8GB | System limit |
+| **Dependencies** | npm packages | System binaries | System binaries |
+| **Setup Complexity** | Low | Medium | High |
+
+### Detailed Documentation
+
+- **[📋 DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete deployment guide with platform-specific instructions
+- **[🔧 TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** - Common issues and solutions for all platforms
 
 ### Environment Requirements
 
 1. **Server Environment**: Linux/macOS/Windows with Node.js
-2. **Python Environment**: Python 3.7+ with pip
+2. **Python Environment**: Python 3.7+ with pip (Railway/Docker)
 3. **System Tools**: yt-dlp and optionally ffmpeg in PATH
 4. **Memory**: Sufficient for temporary file storage during clipping
 5. **Disk Space**: Temporary storage for video processing
