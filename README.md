@@ -6,9 +6,9 @@ A Next.js-based universal video downloader that supports multiple platforms incl
 
 See the app in action:
 
-[![Demo Video](https://img.shields.io/badge/▶️-Watch%20Demo-blue?style=for-the-badge)](./public/downlo.mp4)
+https://github.com/user-attachments/assets/3c9d4943-06b8-4f04-ae3c-1d474f6b096e
 
-_Click above to download and watch the demo video showing how easy it is to download videos from any supported platform!_
+_Watch how easy it is to download videos from any supported platform with just a URL paste!_
 
 ### ✨ Key Features Shown
 
@@ -16,7 +16,6 @@ _Click above to download and watch the demo video showing how easy it is to down
 - **Video preview** - See thumbnail and details before downloading
 - **Multiple formats** - Choose quality and format
 - **Smart clipping** - Download specific segments
-- **iOS-style UI** - Clean, modern interface
 
 ---
 
