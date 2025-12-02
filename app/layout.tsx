@@ -43,9 +43,13 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/assets/assets/favicon-32x32.png", type: "image/png" },
+      { url: "/assets/assets/favicon-16x16.png", type: "image/png" }
     ],
   },
+  // PWA manifest and theme color so browsers detect installability
+  manifest: '/manifest.json',
+  themeColor: '#000000',
   openGraph: {
     type: "website",
     locale: "en_US",

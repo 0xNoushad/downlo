@@ -1,66 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { UrlInput } from "./components/UrlInput";
-import { FormatSelector } from "./components/FormatSelector";
-import { DownloadButton } from "./components/DownloadButton";
-import { ClipSelector } from "./components/ClipSelector";
-import { ThumbnailModal } from "./components/ThumbnailModal";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Loader2 } from "lucide-react";
 
-export interface VideoInfo {
-  thumbnail: string;
-  title: string;
-  duration: string;
-  platform: string;
-  fileSize?: string;
-}
-
-export default function VideoDownloader() {
+export default function Home() {
   const [url, setUrl] = useState("");
-  const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
-  const [selectedFormat, setSelectedFormat] = useState("best[height<=720]");
   const [loading, setLoading] = useState(false);
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [showThumbnailModal, setShowThumbnailModal] = useState(false);
-
-  // Fetch video info when URL changes
-  useEffect(() => {
-    if (!url || !isValidUrl(url)) {
-      setVideoInfo(null);
-      return;
-    }
-
-    const timeoutId = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const response = await fetch("/api/video-info", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url }),
-        });
-
-        if (response.ok) {
-          const info = await response.json();
-          setVideoInfo(info);
-          // Reset clip settings when new video is loaded
-          setStartTime("");
-          setEndTime("");
-        } else {
-          const error = await response.json();
-          console.error("Failed to fetch video info:", error);
-          setVideoInfo(null);
-        }
-      } catch (error) {
-        console.error("Error fetching video info:", error);
-        setVideoInfo(null);
-      } finally {
-        setLoading(false);
-      }
-    }, 1000); // Debounce for 1 second
-
-    return () => clearTimeout(timeoutId);
-  }, [url]);
+  const [error, setError] = useState("");
+  const router = useRouter();
 
   const platforms = [
     "youtube.com",
@@ -83,118 +31,78 @@ export default function VideoDownloader() {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!url.trim()) {
+      setError("Please enter a URL");
+      return;
+    }
+
+    if (!isValidUrl(url)) {
+      setError("Please enter a valid video URL");
+      return;
+    }
+
+    setLoading(true);
+    
+    // Navigate to video page with URL as query param
+    router.push(`/video?url=${encodeURIComponent(url)}`);
+  };
+
   return (
-    <main className="min-h-dvh flex flex-col h-full w-full">
-      <div className="flex flex-col mx-auto w-full h-full">
-        <div className="flex flex-col mx-auto w-full border-dashed h-full">
-          <div className="flex flex-col gap-4 w-full border-x border-dashed max-w-4xl mx-auto h-full min-h-dvh">
-            <div className="relative flex flex-col h-full">
-              <div className="flex flex-col">
-                
-                <div className="p-4 lg:p-6 space-y-6">
-                  <UrlInput
-                    url={url}
-                    setUrl={setUrl}
-                    setVideoInfo={setVideoInfo}
-                    loading={loading}
-                  />
+    <main className="min-h-dvh flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-2xl mx-auto text-center space-y-8">
+        <div className="space-y-4">
+          <h1 className="text-4xl md:text-5xl font-bold">Video Downloader</h1>
+          <p className="text-muted-foreground text-lg">
+            Download videos from YouTube, TikTok, Instagram and more
+          </p>
+        </div>
 
-                  {videoInfo && (
-                    <div className="border border-dashed overflow-hidden">
-                      <div className="flex flex-col">
-                        {videoInfo.thumbnail && (
-                          <div className="w-full aspect-video border-b border-dashed cursor-pointer hover:opacity-80 transition-opacity">
-                            <img
-                              src={videoInfo.thumbnail}
-                              alt={videoInfo.title}
-                              className="w-full h-full object-cover"
-                              onClick={() => setShowThumbnailModal(true)}
-                            />
-                          </div>
-                        )}
-                        <div className="p-4">
-                          <h2 className="font-medium mb-2">
-                            {videoInfo.title}
-                          </h2>
-                          <div className="text-sm text-muted-foreground space-y-1">
-                            <p>Duration: {videoInfo.duration}</p>
-                            {videoInfo.platform && (
-                              <p>Platform: {videoInfo.platform}</p>
-                            )}
-                            {(startTime || endTime) && (
-                              <p className="text-blue-400">✂️ Clip mode enabled</p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Paste video URL here..."
+              className="flex-1 px-4 py-3 border border-dashed bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20"
+              disabled={loading}
+            />
+            <button
+              type="submit"
+              disabled={loading || !url.trim()}
+              className="px-6 py-3 bg-foreground text-background font-medium flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
+            </button>
+          </div>
 
-                  {videoInfo && (
-                    <ClipSelector
-                      duration={videoInfo.duration}
-                      startTime={startTime}
-                      endTime={endTime}
-                      onStartTimeChange={setStartTime}
-                      onEndTimeChange={setEndTime}
-                      onReset={() => {
-                        setStartTime("");
-                        setEndTime("");
-                      }}
-                    />
-                  )}
+          {error && (
+            <p className="text-red-500 text-sm">{error}</p>
+          )}
+        </form>
 
-                  {videoInfo && (
-                    <FormatSelector
-                      selected={selectedFormat}
-                      onChange={setSelectedFormat}
-                    />
-                  )}
-
-                  {videoInfo && (
-                    <DownloadButton
-                      url={url}
-                      format={selectedFormat}
-                      startTime={startTime}
-                      endTime={endTime}
-                    />
-                  )}
-
-                  {!videoInfo && !loading && (
-                    <div className="text-center py-16 text-muted-foreground">
-                      <div className="text-6xl mb-4">🎬</div>
-                      <h3 className="text-lg font-medium mb-2">
-                        paste video url to start
-                      </h3>
-                      <p className="text-sm">
-                        supports youtube, tiktok, instagram and more
-                      </p>
-                    </div>
-                  )}
-
-                  {loading && (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto mb-2"></div>
-                      <p className="text-muted-foreground text-sm">loading video info...</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+        <div className="pt-8 border-t border-dashed">
+          <p className="text-sm text-muted-foreground mb-4">Supported platforms</p>
+          <div className="flex flex-wrap justify-center gap-3 text-sm">
+            {["YouTube", "TikTok", "Instagram", "Twitter", "Facebook", "Vimeo", "Twitch"].map((platform) => (
+              <span key={platform} className="px-3 py-1 border border-dashed text-muted-foreground">
+                {platform}
+              </span>
+            ))}
           </div>
         </div>
       </div>
-
-      {/* Thumbnail Modal */}
-      {videoInfo && (
-        <ThumbnailModal
-          isOpen={showThumbnailModal}
-          onClose={() => setShowThumbnailModal(false)}
-          thumbnail={videoInfo.thumbnail}
-          title={videoInfo.title}
-          videoUrl={url}
-        />
-      )}
     </main>
   );
 }
