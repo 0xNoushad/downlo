@@ -5,6 +5,7 @@ import { readFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { existsSync } from "fs";
+import { parseSync } from "subtitle";
 
 const execAsync = promisify(exec);
 
@@ -21,6 +22,7 @@ interface Short {
   startTime: number;
   endTime: number;
   transcript: string;
+  segments: TranscriptSegment[];
   score: number;
 }
 
@@ -91,9 +93,9 @@ async function getVideoInfo(url: string) {
 
 async function getStreamUrl(url: string): Promise<string> {
   try {
-    // Get direct video URL for preview (CSS will handle the crop visually)
+    // Get 720p video URL for preview (better quality, CSS will handle the crop visually)
     const { stdout } = await execAsync(
-      `yt-dlp -f "best[ext=mp4]/best" --get-url --no-warnings --no-check-certificate "${url}"`,
+      `yt-dlp -f "best[height<=720][ext=mp4]/best[height<=720]/best" --get-url --no-warnings --no-check-certificate "${url}"`,
       { timeout: 30000 }
     );
     return stdout.trim();
@@ -150,84 +152,132 @@ async function getTranscript(url: string): Promise<TranscriptSegment[]> {
   }
 }
 
-function parseVTT(vttContent: string): TranscriptSegment[] {
-  const segments: TranscriptSegment[] = [];
-  const lines = vttContent.split("\n");
-  
-  let currentStart = 0;
-  let currentEnd = 0;
-  let currentText = "";
+function cleanVTTText(text: string): string {
+  return text
+    // Remove VTT timing tags like <00:00:00.000>
+    .replace(/<\d{2}:\d{2}:\d{2}\.\d{3}>/g, "")
+    // Remove VTT style tags like <c>, </c>, <b>, etc.
+    .replace(/<\/?[^>]+>/g, "")
+    // Remove >>> and similar markers that YouTube adds
+    .replace(/>{2,}/g, "")
+    .replace(/<{2,}/g, "")
+    // Decode HTML entities
+    .replace(/&gt;/g, ">")
+    .replace(/&lt;/g, "<")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#x27;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    // Remove [music] and similar markers
+    .replace(/\[.*?\]/g, "")
+    // Clean up whitespace and newlines
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    
-    // Match timestamp line: 00:00:00.000 --> 00:00:05.000
-    const timestampMatch = line.match(
-      /(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})/
-    );
-    
-    if (timestampMatch) {
-      // Save previous segment if exists
-      if (currentText) {
+function parseVTT(vttContent: string): TranscriptSegment[] {
+  // YouTube auto-generated VTT has overlapping progressive cues
+  // Each cue contains previous text + new words
+  // We need to extract only the NEW words from each cue
+  
+  try {
+    const nodes = parseSync(vttContent);
+    const rawCues: { start: number; end: number; text: string }[] = [];
+
+    // First pass: collect all cues with cleaned text
+    for (const node of nodes) {
+      if (node.type === "cue" && node.data) {
+        const cleanText = cleanVTTText(node.data.text);
+        if (cleanText && cleanText.length > 1) {
+          rawCues.push({
+            start: node.data.start / 1000,
+            end: node.data.end / 1000,
+            text: cleanText,
+          });
+        }
+      }
+    }
+
+    if (rawCues.length === 0) return [];
+
+    // Second pass: extract only NEW text from each cue
+    // YouTube VTT shows progressive text where each cue builds on previous
+    const segments: TranscriptSegment[] = [];
+    let lastText = "";
+
+    for (let i = 0; i < rawCues.length; i++) {
+      const cue = rawCues[i];
+      let newText = cue.text;
+
+      // Check if this cue's text starts with or contains the previous text
+      if (lastText && cue.text.toLowerCase().startsWith(lastText.toLowerCase())) {
+        // Extract only the new portion
+        newText = cue.text.substring(lastText.length).trim();
+      } else if (lastText) {
+        // Check if previous text is contained within current (partial overlap)
+        const lastWords = lastText.split(/\s+/);
+        const currentWords = cue.text.split(/\s+/);
+        
+        // Find overlap at the end of lastText and start of currentText
+        let overlapStart = 0;
+        for (let j = Math.min(lastWords.length, currentWords.length); j > 0; j--) {
+          const lastPart = lastWords.slice(-j).join(" ").toLowerCase();
+          const currentPart = currentWords.slice(0, j).join(" ").toLowerCase();
+          if (lastPart === currentPart) {
+            overlapStart = j;
+            break;
+          }
+        }
+        
+        if (overlapStart > 0) {
+          newText = currentWords.slice(overlapStart).join(" ");
+        }
+      }
+
+      // Only add if we have new meaningful text
+      if (newText && newText.length > 1) {
         segments.push({
-          start: currentStart,
-          end: currentEnd,
-          text: currentText.trim(),
+          start: cue.start,
+          end: cue.end,
+          text: newText,
         });
       }
-      
-      // Parse new timestamps
-      currentStart =
-        parseInt(timestampMatch[1]) * 3600 +
-        parseInt(timestampMatch[2]) * 60 +
-        parseInt(timestampMatch[3]) +
-        parseInt(timestampMatch[4]) / 1000;
-      currentEnd =
-        parseInt(timestampMatch[5]) * 3600 +
-        parseInt(timestampMatch[6]) * 60 +
-        parseInt(timestampMatch[7]) +
-        parseInt(timestampMatch[8]) / 1000;
-      currentText = "";
-    } else if (line && !line.startsWith("WEBVTT") && !line.match(/^\d+$/)) {
-      // Text line (not header or cue number)
-      currentText += " " + line.replace(/<[^>]*>/g, ""); // Remove HTML tags
+
+      lastText = cue.text;
     }
-  }
 
-  // Don't forget last segment
-  if (currentText) {
-    segments.push({
-      start: currentStart,
-      end: currentEnd,
-      text: currentText.trim(),
-    });
-  }
+    // Third pass: merge very short consecutive segments
+    const mergedSegments: TranscriptSegment[] = [];
+    let currentSegment: TranscriptSegment | null = null;
 
-  return mergeShortSegments(segments);
-}
-
-function mergeShortSegments(segments: TranscriptSegment[]): TranscriptSegment[] {
-  if (segments.length === 0) return [];
-
-  const merged: TranscriptSegment[] = [];
-  let current = { ...segments[0] };
-
-  for (let i = 1; i < segments.length; i++) {
-    const seg = segments[i];
+    for (const seg of segments) {
+      if (!currentSegment) {
+        currentSegment = { ...seg };
+      } else if (seg.start - currentSegment.end < 0.5 && currentSegment.text.split(/\s+/).length < 8) {
+        // Merge if gap is small and current segment is short
+        currentSegment.end = seg.end;
+        currentSegment.text = currentSegment.text + " " + seg.text;
+      } else {
+        mergedSegments.push(currentSegment);
+        currentSegment = { ...seg };
+      }
+    }
     
-    // Merge if gap is small and combined duration < 10 seconds
-    if (seg.start - current.end < 1 && seg.end - current.start < 10) {
-      current.end = seg.end;
-      current.text += " " + seg.text;
-    } else {
-      merged.push(current);
-      current = { ...seg };
+    if (currentSegment) {
+      mergedSegments.push(currentSegment);
     }
-  }
-  merged.push(current);
 
-  return merged;
+    return mergedSegments;
+  } catch (error) {
+    console.error("VTT parsing error:", error);
+    return [];
+  }
 }
+
+
 
 function generateSegmentsFromDuration(duration: number): TranscriptSegment[] {
   const segments: TranscriptSegment[] = [];
@@ -261,7 +311,7 @@ function findBestClips(
   const targetDuration = { min: 30, max: 60 };
   
   // Score each potential clip window
-  const scoredWindows: { start: number; end: number; text: string; score: number }[] = [];
+  const scoredWindows: { start: number; end: number; text: string; score: number; startIdx: number; endIdx: number }[] = [];
 
   // Slide through transcript to find good 30-60 second windows
   for (let i = 0; i < transcript.length; i++) {
@@ -281,6 +331,8 @@ function findBestClips(
           end: windowEnd,
           text: windowText.trim(),
           score,
+          startIdx: i,
+          endIdx: j,
         });
       }
       
@@ -310,8 +362,17 @@ function findBestClips(
   // Sort by time order
   selectedWindows.sort((a, b) => a.start - b.start);
 
-  // Create Short objects
+  // Create Short objects with segments
   selectedWindows.forEach((window, index) => {
+    // Get segments for this clip, adjusted to start from 0
+    const clipSegments = transcript
+      .slice(window.startIdx, window.endIdx + 1)
+      .map(seg => ({
+        start: seg.start - window.start,
+        end: seg.end - window.start,
+        text: seg.text,
+      }));
+
     shorts.push({
       id: `short-${index}`,
       thumbnail: videoInfo.thumbnail,
@@ -319,6 +380,7 @@ function findBestClips(
       startTime: Math.floor(window.start),
       endTime: Math.floor(window.end),
       transcript: window.text.substring(0, 300) + (window.text.length > 300 ? "..." : ""),
+      segments: clipSegments,
       score: window.score,
     });
   });

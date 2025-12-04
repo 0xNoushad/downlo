@@ -1,7 +1,7 @@
 "use client";
 
-import { forwardRef, useRef, useEffect, useImperativeHandle } from "react";
-import { Play, Pause, Pencil } from "lucide-react";
+import { forwardRef, useRef, useEffect, useImperativeHandle, useState } from "react";
+import { Play, Pause, Pencil, Loader2 } from "lucide-react";
 
 interface Short {
   id: string;
@@ -49,6 +49,8 @@ export const ShortPreview = forwardRef<IphoneHandle, ShortPreviewProps>(({
   onEditClick,
 }, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const duration = selectedShort ? selectedShort.endTime - selectedShort.startTime : 0;
 
   const formatTime = (seconds: number): string => {
@@ -70,21 +72,49 @@ export const ShortPreview = forwardRef<IphoneHandle, ShortPreviewProps>(({
 
     const handleLoadedMetadata = () => {
       video.currentTime = selectedShort.startTime;
-      video.play().catch(() => {});
+      video.play().catch((e) => console.log("Autoplay blocked:", e));
     };
+
+    const handleCanPlay = () => {
+      setIsLoading(false);
+      if (video.paused) {
+        video.play().catch((e) => console.log("Play blocked:", e));
+      }
+    };
+
+    const handleError = (e: Event) => {
+      console.error("Video error:", e);
+      setHasError(true);
+      setIsLoading(false);
+    };
+
+    const handleWaiting = () => setIsLoading(true);
+    const handlePlaying = () => setIsLoading(false);
 
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("canplay", handleCanPlay);
+    video.addEventListener("error", handleError);
+    video.addEventListener("waiting", handleWaiting);
+    video.addEventListener("playing", handlePlaying);
+
+    // Reset states when clip changes
+    setIsLoading(true);
+    setHasError(false);
 
     // Seek to start when clip changes
     if (video.readyState >= 1) {
       video.currentTime = selectedShort.startTime;
-      video.play().catch(() => {});
+      video.play().catch((e) => console.log("Play blocked:", e));
     }
 
     return () => {
       video.removeEventListener("timeupdate", handleTimeUpdate);
       video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("canplay", handleCanPlay);
+      video.removeEventListener("error", handleError);
+      video.removeEventListener("waiting", handleWaiting);
+      video.removeEventListener("playing", handlePlaying);
     };
   }, [selectedShort]);
 
@@ -92,6 +122,10 @@ export const ShortPreview = forwardRef<IphoneHandle, ShortPreviewProps>(({
     toggle: () => {
       const video = videoRef.current;
       if (!video) return;
+      // Unmute on first interaction
+      if (video.muted) {
+        video.muted = false;
+      }
       if (video.paused) {
         video.play().catch(() => {});
       } else {
@@ -118,17 +152,32 @@ export const ShortPreview = forwardRef<IphoneHandle, ShortPreviewProps>(({
               borderRadius: `${RADIUS_H}% / ${RADIUS_V}%`,
             }}
           >
-            <video
-              ref={videoRef}
-              src={streamUrl}
-              className="h-full w-auto max-w-none absolute left-1/2 -translate-x-1/2"
-              style={{ aspectRatio: "16/9" }}
-              autoPlay
-              loop
-              muted={false}
-              playsInline
-              preload="auto"
-            />
+            {streamUrl ? (
+              <video
+                ref={videoRef}
+                src={streamUrl}
+                className="h-full w-auto max-w-none absolute left-1/2 -translate-x-1/2"
+                style={{ aspectRatio: "16/9" }}
+                autoPlay
+                muted
+                playsInline
+                preload="auto"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-white/50 text-sm">
+                No video
+              </div>
+            )}
+            {isLoading && streamUrl && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <Loader2 className="w-8 h-8 animate-spin text-white" />
+              </div>
+            )}
+            {hasError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/80 text-white text-sm text-center p-4">
+                Failed to load video
+              </div>
+            )}
           </div>
 
           {/* Play/Pause overlay */}

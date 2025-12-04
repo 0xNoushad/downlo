@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { ShortPreview, ShortsList, type IphoneHandle } from "./components";
 
+interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
 interface Short {
   id: string;
   thumbnail: string;
@@ -12,6 +18,7 @@ interface Short {
   startTime: number;
   endTime: number;
   transcript: string;
+  segments?: TranscriptSegment[];
   score: number;
 }
 
@@ -63,12 +70,18 @@ export default function SelectPage() {
   const handleEditClick = () => {
     if (!selectedShort || !data) return;
     
+    // Store segments in sessionStorage since they can be large
+    if (selectedShort.segments) {
+      sessionStorage.setItem("edit_segments", JSON.stringify(selectedShort.segments));
+    }
+    
     const params = new URLSearchParams({
       video: data.streamUrl,
       source: data.sourceUrl,
       start: selectedShort.startTime.toString(),
       end: selectedShort.endTime.toString(),
       title: selectedShort.title,
+      transcript: selectedShort.transcript,
     });
     
     router.push(`/shorts/edit?${params}`);

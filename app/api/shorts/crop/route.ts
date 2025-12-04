@@ -90,27 +90,29 @@ export async function GET(request: NextRequest) {
 
     console.log("Generating cropped video:", { url, start, end });
 
-    // Get direct stream URL from yt-dlp
-    const { stdout } = await execAsync(
-      `yt-dlp -f "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best" --get-url --no-warnings "${url}"`,
-      { timeout: 30000 }
-    );
-
-    const directUrl = stdout.trim().split("\n")[0];
-    if (!directUrl) {
-      return Response.json({ error: "Could not get video URL" }, { status: 500 });
-    }
-
     const duration = end - start;
 
-    // Use FFmpeg to crop and save to cache
+    // Get direct URL with audio using yt-dlp (format that includes both video+audio)
+    console.log("Step 1: Getting direct URL from yt-dlp...");
+    const { stdout: formatUrl } = await execAsync(
+      `yt-dlp -f "best[height<=720]/best" -g --no-warnings "${url}"`,
+      { timeout: 30000 }
+    );
+    
+    const directUrl = formatUrl.trim();
+    if (!directUrl) {
+      throw new Error("Could not get video URL from yt-dlp");
+    }
+    console.log("Got direct URL:", directUrl.substring(0, 100) + "...");
+
+    // Use FFmpeg to download segment and crop in one step
     const ffmpegCmd = [
       "ffmpeg",
       "-y",
       "-ss", start.toString(),
-      "-i", `"${directUrl}"`,
+      `-i "${directUrl}"`,
       "-t", duration.toString(),
-      "-vf", '"crop=ih*9/16:ih,scale=720:1280"',  // Crop to 9:16 and scale to 720p
+      "-vf", '"crop=ih*9/16:ih,scale=720:1280"',
       "-c:v", "libx264",
       "-preset", "fast",
       "-crf", "23",
@@ -120,8 +122,15 @@ export async function GET(request: NextRequest) {
       `"${cachedPath}"`,
     ].join(" ");
 
-    console.log("Running FFmpeg crop...");
-    await execAsync(ffmpegCmd, { timeout: 120000 });
+    console.log("Step 2: Processing with FFmpeg...");
+    console.log("Command:", ffmpegCmd);
+    const { stderr: ffErr } = await execAsync(ffmpegCmd, { timeout: 180000 });
+    if (ffErr) console.log("FFmpeg stderr:", ffErr);
+
+    // Verify output exists
+    if (!(await fileExists(cachedPath))) {
+      throw new Error("FFmpeg processing failed - output file not created");
+    }
 
     // Read and return the file
     const fileBuffer = await readFile(cachedPath);

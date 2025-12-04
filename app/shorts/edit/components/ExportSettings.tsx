@@ -16,9 +16,9 @@ export function ExportSettings({ quality, onQualityChange, isDownloading, onDown
   const [showQualityMenu, setShowQualityMenu] = useState(false);
 
   const qualityOptions = [
-    { value: "720" as Quality, label: "720p (HD)" },
-    { value: "1080" as Quality, label: "1080p (Full HD)" },
-    { value: "best" as Quality, label: "Best Available" },
+    { value: "720" as Quality, label: "720p HD" },
+    { value: "1080" as Quality, label: "1080p Full HD" },
+    { value: "best" as Quality, label: "Max Quality (4K if available)" },
   ];
 
   const currentLabel = qualityOptions.find(opt => opt.value === quality)?.label || "1080p (Full HD)";
@@ -31,8 +31,12 @@ export function ExportSettings({ quality, onQualityChange, isDownloading, onDown
           <h3 className="font-medium">Export Settings</h3>
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          Preview is 720p. Download will be at selected quality, cropped to 9:16.
+        </p>
+
         <div className="space-y-2">
-          <label className="text-sm text-muted-foreground">Quality</label>
+          <label className="text-sm text-muted-foreground">Download Quality</label>
           <div className="relative">
             <button
               onClick={() => setShowQualityMenu(!showQualityMenu)}
